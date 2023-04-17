@@ -27,26 +27,30 @@ async def verify(session: CommandSession):
         await session.send('验证码错误，请重新输入')
         return
 
-    await session.send('已通过验证，请在2分钟内点击注册')
-    await r.setex(f'verified:{session.event.user_id}', 120, True)
-    await r.delete(f'captcha:{session.event.user_id}')
+    r.setex(f'verified:{session.event.user_id}', 120, 1)
+    r.delete(f'captcha:{session.event.user_id}')
+    await session.send('已通过验证，请返回注册页，并在2分钟内点击注册')
 
 
-@on_command('flush', aliases=('获取群员', '更新群员'))
+@on_command('flush', aliases=('获取群员', '更新群员', '刷新群员', '刷新', '更新', '获取'))
 async def member_flush(session: CommandSession):
-    ids = {}
+    if session.event.user_id not in config.SUPERUSERS:
+        return
+
+    ids = set()
     members = (await session.bot.get_group_member_list(group_id=config.GROUP_ID, self_id=config.BOT_ID))
     for u in members:
-        ids.append(u['user_id'])
+        ids.add(u['user_id'])
 
-    await r.sadd('group_member', *ids)
+    r.sadd('group_member', *ids)
+    await session.send(f'刷新成功，当前打点群员共{len(ids)}人')
 
 
 @on_notice('increase')
 async def member_increase(session: NoticeSession):
-    await r.sadd('group_member', session.event.user_id)
+    r.sadd('group_member', session.event.user_id)
 
 
 @on_notice('decrease')
 async def member_decrease(session: NoticeSession):
-    await r.srem('group_member', session.event.user_id)
+    r.srem('group_member', session.event.user_id)

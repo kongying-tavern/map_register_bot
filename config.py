@@ -1,4 +1,6 @@
 from nonebot.default_config import *
+# 生产模式置False以提高性能
+DEBUG = True
 
 # 管理员的号
 SUPERUSERS = {1404647441, 1026821350, 717818652, 1809521264}

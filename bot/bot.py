@@ -11,7 +11,7 @@ if __name__ == '__main__':
     nonebot.load_builtin_plugins()
     # 加载所有插件
     nonebot.load_plugins(
-        path.join(path.dirname(__file__), 'bot', 'plugins'),
-        'bot.plugins'
+        path.join(path.dirname(__file__), 'plugins'),
+        'plugins'
     )
     nonebot.run()

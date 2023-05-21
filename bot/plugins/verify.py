@@ -3,9 +3,8 @@ from nonebot.plugin import PluginManager
 from nonebot.log import logger
 
 import aiocqhttp
-import redis
+import aioredis
 import config
-import logging
 
 # 注册验证插件
 # @author  Icy（刻猫猫），icy_official@qq.com
@@ -37,15 +36,14 @@ __plugin_name__ = '注册验证'
 __plugin_usage__ = '验证 [6位数字验证码]'
 
 # 初始化redis连接池
-pool = redis.ConnectionPool(host='localhost', port=6379, decode_responses=True)
-r = redis.Redis(connection_pool=pool)
+r = aioredis.from_url("redis://localhost", decode_responses=True)
 
 
 # 消息预处理：检测黑名单
 @message_preprocessor
 async def _(bot: NoneBot, event: aiocqhttp.Event, plugin_manager: PluginManager):
     event["preprocessed"] = True
-    if event.message_type == 'private' and r.sismember('blacklist', str(event.user_id)):
+    if event.message_type == 'private' and await r.sismember('blacklist', str(event.user_id)):
         await bot.send_msg(user_id=event.user_id, message='禁止访问，请私聊空荧酒馆打点组管理员717818652')
         logger.warn(f'用户{event.user_id}访问被拒绝')
         plugin_manager.switch_plugin("bot.plugins.verify", state=False)
@@ -62,13 +60,18 @@ async def verify(session: CommandSession):
             code = (await session.aget(prompt='请输入6位数字验证码')).strip()
             continue
         if not code.isdigit() or len(code) != 6:
-            code = (await session.aget(prompt='验证码格式错误，请重新输入')).strip()
+            code = (await session.aget(prompt='验证码格式错误，请直接输入6位数字')).strip()
             continue
         break
 
     # redis无邀请码信息
-    temp = r.get(f'captcha:{session.event.user_id}')
-    for i in range(0):
+    temp = await r.get(f'captcha:{session.event.user_id}')
+    for i in range(1):
+        # 已验证
+        if await r.get(f'verified:{session.event.user_id}'):
+            await session.send('已通过验证，请勿重复操作')
+            return
+
         if not temp:
             await session.send('验证码不存在或超时，请重新注册')
             continue
@@ -81,18 +84,19 @@ async def verify(session: CommandSession):
         break
     else:
         logger.warn(f'用户{session.event.user_id}输入了无效的验证码')
-        if r.get(f'wrong:{session.event.user_id}') is None:
-            r.setex(f'wrong:{session.event.user_id}', 300, 1)
+        if await r.get(f'wrong:{session.event.user_id}') is None:
+            await r.setex(f'wrong:{session.event.user_id}', 300, 1)
             return
 
-        r.sadd('blacklist', session.event.user_id)
+        await r.sadd('blacklist', session.event.user_id)
+        await session.send('5分钟内输入2次无效验证码，自动拉黑，请联系空荧酒馆管理员处理')
         await session.bot.send_group_msg(group_id=992165223, message=f'用户{session.event.user_id}5分钟内输入2次无效验证码，自动拉黑')
         logger.warn(f'用户{session.event.user_id}5分钟内输入2次无效验证码，自动拉黑')
         return
 
     # 通过验证，修改redis键名
-    r.setex(f'verified:{session.event.user_id}', 300, 1)
-    r.delete(f'captcha:{session.event.user_id}')
+    await r.setex(f'verified:{session.event.user_id}', 300, 1)
+    await r.delete(f'captcha:{session.event.user_id}')
     await session.send('已通过验证，请返回注册页，并在5分钟内点击注册')
 
 
@@ -105,7 +109,7 @@ async def member_flush(session: CommandSession):
         ids.add(u['user_id'])
 
     logger.info(f'已刷新打点群员共{len(ids)}人')
-    r.sadd('group_member', *ids)
+    await r.sadd('group_member', *ids)
     await session.send(f'刷新成功，当前打点群员共{len(ids)}人')
 
 
@@ -113,14 +117,14 @@ async def member_flush(session: CommandSession):
 @on_notice('increase')
 async def member_increase(session: NoticeSession):
     logger.info(f'用户{session.event.user_id}入群，同步更新名单')
-    r.sadd('group_member', session.event.user_id)
+    await r.sadd('group_member', session.event.user_id)
 
 
 # 辅助逻辑：删除群员，更新名单
 @on_notice('decrease')
 async def member_decrease(session: NoticeSession):
     logger.info(f'用户{session.event.user_id}退群，同步更新名单')
-    r.srem('group_member', session.event.user_id)
+    await r.srem('group_member', session.event.user_id)
 
 
 # 辅助逻辑：私聊拉黑
@@ -130,7 +134,7 @@ async def member_ban(session: CommandSession):
     while not uid.isdigit():
         uid = (await session.aget(prompt='请输入拉黑QQ号')).strip()
 
-    r.sadd('blacklist', uid)
+    await r.sadd('blacklist', uid)
     logger.info(f'拉黑用户{uid}')
     await session.send('拉黑成功')
 
@@ -142,6 +146,18 @@ async def member_unban(session: CommandSession):
     while not uid.isdigit():
         uid = (await session.aget(prompt='请输入解封QQ号')).strip()
 
-    r.srem('blacklist', uid)
+    await r.srem('blacklist', uid)
+    await r.delete(f'wrong:{uid}')
     logger.info(f'解封用户{uid}')
     await session.send('解封成功')
+
+
+# 辅助逻辑：查询是否在黑名单
+@on_command('in-blacklist', aliases=('查询黑名单', '黑名单查询'), permission=lambda sender: sender.is_superuser)
+async def in_blacklist(session: CommandSession):
+    uid = session.current_arg_text.strip()
+    while not uid.isdigit():
+        uid = (await session.aget(prompt='请输入查询QQ号')).strip()
+
+    b = await r.sismember('blacklist', uid)
+    await session.send(f'用户{uid}{"在" if b else "不在"}黑名单内')

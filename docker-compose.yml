@@ -1,0 +1,24 @@
+version: "3"
+
+services:
+  gocqhttp:
+    image: pcrbot/gocqhttp:latest
+    volumes:
+      - ./gocqhttp:/data:delegated # 用于保存 gocqhttp 相关文件，请复制 config.yml 等文件到此
+    tty: true
+    stdin_open: true
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      - awesome-bot
+
+  awesome-bot:
+    build: ./awesome-bot # 构建nonebot执行环境，Dockerfile见下面的例子
+    expose:
+      - "8080"
+    environment:
+      - TZ=Asia/Shanghai
+
+networks:
+  default:
+    name: workspace-default

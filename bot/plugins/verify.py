@@ -5,6 +5,8 @@ from nonebot.log import logger
 import aiocqhttp
 import aioredis
 import config
+import os
+
 
 # 注册验证插件
 # @author  Icy（刻猫猫），icy_official@qq.com
@@ -35,8 +37,34 @@ import config
 __plugin_name__ = '注册验证'
 __plugin_usage__ = '验证 [6位数字验证码]'
 
+
 # 初始化redis连接池
 r = aioredis.from_url("redis://localhost", decode_responses=True)
+
+# 启动时：导入黑名单
+try:
+    with open('blacklist.csv') as f:
+        blacklist = f.read().split(',')
+        # 加await又说语法错误，不加又说未等待协同，Orz
+        r.sadd('blacklist', blacklist)
+        logger.info(f'成功导入redis黑名单备份，共{len(blacklist)}项')
+except FileNotFoundError:
+    logger.info('未找到redis黑名单备份')
+
+
+# 备份黑名单
+# 当群员变动，管理员手动备份或发送解封、封禁等指令时执行
+# TODO: 想写成定时的但是搞不好。参考了见 https://docs.nonebot.dev/advanced/scheduler.html
+async def backup():
+    logger.info('备份redis黑名单成功')
+    os.popen('redis-cli --csv SMEMBERS blacklist > blacklist.csv')
+
+
+# 辅助逻辑：备份黑名单
+@on_command('backup', aliases=('备份', '黑名单', '黑名单备份', '备份黑名单'), permission=lambda sender: sender.is_superuser)
+async def on_backup(session: CommandSession):
+    await backup()
+    await session.send('备份redis黑名单成功')
 
 
 # 消息预处理：检测黑名单
@@ -44,7 +72,7 @@ r = aioredis.from_url("redis://localhost", decode_responses=True)
 async def _(bot: NoneBot, event: aiocqhttp.Event, plugin_manager: PluginManager):
     event["preprocessed"] = True
     if event.message_type == 'private' and await r.sismember('blacklist', str(event.user_id)):
-        await bot.send_msg(user_id=event.user_id, message='禁止访问，请私聊空荧酒馆打点组管理员717818652')
+        await bot.send_msg(user_id=event.user_id, message='禁止访问，请私聊空荧酒馆打点组管理员')
         logger.warn(f'用户{event.user_id}访问被拒绝')
         plugin_manager.switch_plugin("bot.plugins.verify", state=False)
         return
@@ -109,8 +137,10 @@ async def member_flush(session: CommandSession):
         ids.add(u['user_id'])
 
     logger.info(f'已刷新打点群员共{len(ids)}人')
+    await r.delete('group_member')
     await r.sadd('group_member', *ids)
     await session.send(f'刷新成功，当前打点群员共{len(ids)}人')
+    await backup()
 
 
 # 辅助逻辑：新增群员，更新名单
@@ -118,6 +148,7 @@ async def member_flush(session: CommandSession):
 async def member_increase(session: NoticeSession):
     logger.info(f'用户{session.event.user_id}入群，同步更新名单')
     await r.sadd('group_member', session.event.user_id)
+    await backup()
 
 
 # 辅助逻辑：删除群员，更新名单
@@ -125,6 +156,7 @@ async def member_increase(session: NoticeSession):
 async def member_decrease(session: NoticeSession):
     logger.info(f'用户{session.event.user_id}退群，同步更新名单')
     await r.srem('group_member', session.event.user_id)
+    await backup()
 
 
 # 辅助逻辑：私聊拉黑
@@ -137,6 +169,7 @@ async def member_ban(session: CommandSession):
     await r.sadd('blacklist', uid)
     logger.info(f'拉黑用户{uid}')
     await session.send('拉黑成功')
+    await backup()
 
 
 # 辅助逻辑：私聊解封
@@ -150,6 +183,7 @@ async def member_unban(session: CommandSession):
     await r.delete(f'wrong:{uid}')
     logger.info(f'解封用户{uid}')
     await session.send('解封成功')
+    await backup()
 
 
 # 辅助逻辑：查询是否在黑名单

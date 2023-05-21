@@ -1,7 +1,7 @@
 from os import path
 
-import nonebot
 import config
+import nonebot
 
 # bot入口
 if __name__ == '__main__':

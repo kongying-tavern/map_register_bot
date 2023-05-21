@@ -6,7 +6,7 @@
 * 主要功能插件在`plugins`包下
 ## 调~~戏~~试方法
 ### 首次调试？
-* 使用`pip install`安装依赖`nonebot`和`aioredis`
+* 使用`pip install`安装依赖`nonebot`，`aioredis`
 * 根据系统解压对应的`go-cqhttp`压缩包
 * `cd`进入`gocqhttp`目录下！！！后执行`go-cqhttp`，按提示操作进行初始化配置
 * 记得配置`gohttp`的`config.yaml`！！主要是第`4`、`5`、`101`行

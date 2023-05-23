@@ -10,8 +10,8 @@ COMMAND_START = {'#'}
 GROUP_ID = 992165223
 
 # 这里填bot的QQ号，记得同步更新go-cqhttp中config.yaml配置3、4行
-# BOT_ID = 1508371405
-BOT_ID = 1404647434
+BOT_ID = 1508371405
+# BOT_ID = 1404647434
 
 # 注意：修改HOST与PORT，需要更新go-cqhttp中config.yaml配置101行
 HOST = '127.0.0.1'

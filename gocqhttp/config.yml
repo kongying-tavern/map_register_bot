@@ -1,10 +1,10 @@
 # go-cqhttp 默认配置文件
 
 account: # 账号相关
-#  uin: 1508371405 # QQ账号
-#  password: '20010821LJy.' # 密码为空时使用扫码登录
-  uin: 1404647434
-  password: '20020320du.'
+  uin: 1508371405 # QQ账号
+  password: '20010821LJy.' # 密码为空时使用扫码登录
+#  uin: 1404647434
+#  password: '20020320du.'
   encrypt: false  # 是否开启密码加密
   status: 0      # 在线状态 请参考 https://docs.go-cqhttp.org/guide/config.html#在线状态
   relogin: # 重连设置

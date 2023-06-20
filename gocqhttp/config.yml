@@ -1,8 +1,10 @@
 # go-cqhttp 默认配置文件
 
 account: # 账号相关
-  uin: 1508371405 # QQ账号
-  password: '20010821LJy.' # 密码为空时使用扫码登录
+  # uin: 1508371405 # QQ账号
+  # password: '20010821LJy.' # 密码为空时使用扫码登录
+  uin: # QQ账号
+  password: # 密码为空时使用扫码登录
 #  uin: 1404647434
 #  password: '20020320du.'
   encrypt: false  # 是否开启密码加密
@@ -100,7 +102,7 @@ servers:
   - ws-reverse:
       # 反向WS Universal 地址
       # 注意 设置了此项地址后下面两项将会被忽略
-      universal: ws://127.0.0.1:8080/ws
+      universal: ws://register-bot:8080/onebot/v11/ws
       # 反向WS API 地址
       api: ws://your_websocket_api.server
       # 反向WS Event 地址

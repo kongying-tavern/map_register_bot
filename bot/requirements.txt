@@ -1,2 +1,0 @@
-aioredis==2.0.1
-nonebot>=1.9.1
